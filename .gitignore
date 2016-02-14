@@ -1,0 +1,5 @@
+/dump.bin
+/dumps
+/schematics/*-cache.lib
+/schematics/*.bak
+*~

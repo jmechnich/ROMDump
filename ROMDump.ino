@@ -22,25 +22,41 @@
 */
 
 // This sketch can be used for dumping (E)PROM contents using a
-// microcontroller and e.g. two daisy-chained CD4520 dual 4-bit counters.
+// microcontroller and e.g. several daisy-chained CD4520 dual 4-bit counters.
 // It was tested with a Teensy 3.1 board for dumping an Amiga Kickstart ROM.
 
-// address range (maximum 17-bit -> 1 << 17)
-const uint32_t addressMax = 1 << 17;
+/*
+ * Settings
+ */
+
+// address size
+#define ADDR_NBIT 16
+// data size
+#define DATA_NBIT 16
+// comment out if LSB first
+#define DATA_MSBFIRST
+
+// for counter testing use same range as address
+//#define DATA_NBIT ADDR_NBIT
 
 // uncomment the following line in order to add a 1us pause between address
-// change and readout
+// change and readout if ROM is slow
 //#define WAIT_1US
 
-// readout pins
-const uint8_t PIN_START = 0;
-const uint8_t PIN_N     = 16;
-// extra address bit (counters only do 16-bit)
-const uint8_t PIN_EXBIT = 16;
-// counter clock and reset
-const uint8_t PIN_CLOCK = 17;
-const uint8_t PIN_RESET = 18;
+// data readout pins are sequential from PIN_START to PIN_N-1
+#define PIN_START 0
+#define PIN_N     DATA_NBIT
 
+// counter clock and reset
+#define PIN_CLOCK 20
+#define PIN_RESET (PIN_CLOCK+1)
+
+/*
+ * Start of code
+ */
+
+#define ADDR_MAX (1 << ADDR_NBIT)
+ 
 // current address
 uint32_t address  = 0;
 
@@ -55,8 +71,12 @@ void print() {
   Serial.print(", hex: 0x");
   Serial.print(data,HEX);
   Serial.print(", chr: '");
-  Serial.print(char(data & 0xff));
-  Serial.print(char(data >> 8));
+#ifndef DATA_MSBFIRST
+  for (uint8_t i=0; i<DATA_NBIT/8; ++i)
+#else
+  for (int8_t i=(DATA_NBIT/8)-1; i>=0; --i)
+#endif
+    Serial.print(char((data >> (i*8))& 0xff));
   Serial.print("', bin: ");
   Serial.println(data,BIN);
 }
@@ -65,7 +85,6 @@ void print() {
 void reset() {
   digitalWrite(PIN_RESET,HIGH);
   digitalWrite(PIN_RESET,LOW);
-  digitalWrite(PIN_EXBIT,LOW);
   address  = 0;
 #ifdef WAIT_1US
   delayMicroseconds(1);
@@ -77,10 +96,6 @@ void next() {
   digitalWrite(PIN_CLOCK,HIGH);
   digitalWrite(PIN_CLOCK,LOW);
   ++address;
-  if (address == (1 << 16)) {
-    // if address is larger than 16-bit use extra pin from uC
-    digitalWrite(PIN_EXBIT,HIGH);
-  }
 #ifdef WAIT_1US
   delayMicroseconds(1);
 #endif
@@ -96,15 +111,19 @@ void dump() {
       data |= digitalRead(i) << i;
     }
     next();
-    Serial.print(char(data >> 8));
-    Serial.print(char(data & 0xff));
-  } while (address != addressMax);
+#ifndef DATA_MSBFIRST
+  for (uint8_t i=0; i<DATA_NBIT/8; ++i)
+#else
+  for (int8_t i=(DATA_NBIT/8)-1; i>=0; --i)
+#endif
+    Serial.print(char((data >> (i*8))& 0xff));
+  } while (address != ADDR_MAX);
   Serial.flush();
 }
 
-// counterTest() helper function: read counter state from pins and convert to integer
-uint16_t toInt() {
-  uint16_t ret = 0;
+// counterTest() helper function: read count from pins and convert to integer
+uint32_t toInt() {
+  uint32_t ret = 0;
   for (uint8_t i=PIN_START; i < PIN_N; ++i)
     ret += digitalRead(i) << i;
   return ret;
@@ -119,21 +138,29 @@ void counterTest() {
   while( address == toInt())
     next();
   unsigned long stop = millis();
+
+  uint8_t nbits = log2(address);
+  if (nbits == ADDR_NBIT) {
+    Serial.print("All ");
+    Serial.print(ADDR_NBIT);
+    Serial.println(" bits seem to be working");
+  } else if (nbits < ADDR_NBIT) {
+    Serial.print("Premature overflow: ");
+    Serial.print(address);
+    Serial.print(" != ");
+    Serial.println(toInt());
+    Serial.print(nbits);
+    Serial.println(" bits processed so far");
+  }
   Serial.print("Runtime: ");
   Serial.print((stop-start)/1000.);
   Serial.println(" seconds");
-  Serial.print(address);
-  Serial.print(" != ");
-  Serial.println(toInt());
 }
 
 void setup() {
   for (uint8_t i=PIN_START; i<PIN_N; ++i)
     pinMode(i,INPUT);
     
-  // EXTRA BIT
-  pinMode(PIN_EXBIT,OUTPUT);
-  digitalWrite(PIN_EXBIT,LOW);
   // CLOCK
   pinMode(PIN_CLOCK,OUTPUT);
   digitalWrite(PIN_CLOCK,LOW);
