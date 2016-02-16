@@ -39,9 +39,9 @@
 // for counter testing use same range as address
 //#define DATA_NBIT ADDR_NBIT
 
-// uncomment the following line in order to add a 1us pause between address
-// change and readout if ROM is slow
-//#define WAIT_1US
+// comment the following line in order to remove the 1us pause between address
+// change and readout if ROM is fast
+#define WAIT_1US
 
 // data readout pins are sequential from PIN_START to PIN_N-1
 #define PIN_START 0
@@ -72,9 +72,9 @@ void print() {
   Serial.print(data,HEX);
   Serial.print(", chr: '");
 #ifndef DATA_MSBFIRST
-  for (uint8_t i=0; i<DATA_NBIT/8; ++i)
+  for (uint8_t i=0; i<(DATA_NBIT+7)/8; ++i)
 #else
-  for (int8_t i=(DATA_NBIT/8)-1; i>=0; --i)
+  for (int8_t i=((DATA_NBIT+7)/8)-1; i>=0; --i)
 #endif
     Serial.print(char((data >> (i*8))& 0xff));
   Serial.print("', bin: ");
@@ -112,9 +112,9 @@ void dump() {
     }
     next();
 #ifndef DATA_MSBFIRST
-  for (uint8_t i=0; i<DATA_NBIT/8; ++i)
+  for (uint8_t i=0; i<(DATA_NBIT+7)/8; ++i)
 #else
-  for (int8_t i=(DATA_NBIT/8)-1; i>=0; --i)
+  for (int8_t i=((DATA_NBIT/8)-1; i>=0; --i)
 #endif
     Serial.print(char((data >> (i*8))& 0xff));
   } while (address != ADDR_MAX);
